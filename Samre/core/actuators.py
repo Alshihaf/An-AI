@@ -5,7 +5,7 @@ Setiap kelas di sini mewakili kemampuan agen untuk melakukan tindakan tertentu
 di dalam lingkungannya, seperti belajar, bernalar, atau berevolusi.
 """
 
-from core.file_manager import FileManager
+from tools.file_manager import FileManager
 from typing import Dict, Any
 
 class LearningActuator:

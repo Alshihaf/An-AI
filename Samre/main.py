@@ -8,6 +8,7 @@ import sys
 import os
 import time
 import argparse
+from typing import Optional
 
 # Add the project path to sys.path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

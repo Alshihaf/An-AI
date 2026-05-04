@@ -14,7 +14,7 @@ from core.neuromodulator import NeuromodulatorSystem, NeuromodulatoryEvent
 from core.needs import InternalNeeds
 from core.sws_logic import score_all_actions, POSSIBLE_ACTIONS
 from core.executive import evaluate_action
-from core.file_manager import FileManager
+from tools.file_manager import FileManager
 from core.actuators import LearningActuator, ReasoningActuator, EvolutionaryActuator
 
 class FlockOfThought:
