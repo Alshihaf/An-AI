@@ -11,16 +11,18 @@ class InternalNeeds:
     """
     def __init__(self):
         self.needs = {
-            "hunger": 0.0,      # Drive to seek new information/data
-            "boredom": 0.0,     # Drive to engage in different tasks
-            "fatigue": 0.0,     # Need to rest and consolidate
-            "messiness": 0.0    # Drive to organize and refactor
+            "hunger": 0.0,          # Drive to seek new information/data
+            "boredom": 0.0,         # Drive to engage in different tasks
+            "fatigue": 0.0,         # Need to rest and consolidate
+            "messiness": 0.0,       # Drive to organize and refactor code
+            "cognitive_load": 0.0   # Drive to prune and optimize the connectome
         }
         self.need_growth_rates = {
             "hunger": 0.05,
             "boredom": 0.03,
             "fatigue": 0.02,
-            "messiness": 0.04
+            "messiness": 0.04,
+            "cognitive_load": 0.06 # Builds up as new knowledge is acquired
         }
 
     def update_needs(self):
@@ -47,3 +49,7 @@ class InternalNeeds:
         if need in self.needs:
             self.needs[need] = max(0.0, self.needs[need] - amount)
 
+    def increase_need(self, need: str, amount: float):
+        """Manually increase a need, e.g., when a specific event occurs."""
+        if need in self.needs:
+            self.needs[need] = min(1.0, self.needs[need] + amount)

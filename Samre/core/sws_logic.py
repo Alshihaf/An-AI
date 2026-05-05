@@ -16,7 +16,7 @@ POSSIBLE_ACTIONS = [
     "REST",         # Do nothing, allow fatigue to decrease and neuromodulators to reset.
     "LEARN",        # Explicitly study a specific file or topic.
     "REASON",       # Perform deductive reasoning on a set of sources.
-    # More actions can be added here.
+    "CONSOLIDATE",  # Prune and strengthen the Samantic Garden (connectome).
 ]
 
 def foresight_simulation(
@@ -63,6 +63,10 @@ def foresight_simulation(
         # A high-cognitive-cost action.
         score += needs.get("hunger", 0.0) * 0.8
         score -= needs.get("fatigue", 0.0) * 0.8 # Very unlikely if tired
+    elif action == "CONSOLIDATE":
+        # Driven by cognitive load, representing the need to organize the mind.
+        score += needs.get("cognitive_load", 0.0) * 1.8
+        score -= needs.get("fatigue", 0.0) * 0.3 # Less likely to do if very tired
     elif action == "REST":
         # Driven strongly by fatigue.
         score += needs.get("fatigue", 0.0) * 2.0
@@ -86,7 +90,7 @@ def foresight_simulation(
     # Cortisol (stress) can be a motivator for urgent needs, but also hinders complex tasks
     if needs.get("hunger", 0.0) > 0.8 or needs.get("messiness", 0.0) > 0.8:
         score *= (1.0 + cortisol * 0.2)
-    if action in ["EVOLVE", "REASON"]:
+    if action in ["EVOLVE", "REASON", "CONSOLIDATE"]:
         score *= (1.0 - cortisol * 0.5) # Stress makes complex thought harder
 
     # 3. Influence of Learning and Confidence
