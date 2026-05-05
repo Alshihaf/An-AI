@@ -115,7 +115,7 @@ class CognitiveEngine:
     """
     def __init__(self, dimensionality: int = 64, attention_heads: int = 4):
         self.dim = dimensionality
-        self.attention = CognitiveAttention(dim, heads=attention_heads)
+        self.attention = CognitiveAttention(self.dim, heads=attention_heads)
         self.working_memory = WorkingMemory(capacity=10, decay=0.85)
 
         # Memori semantik (bobot internal)

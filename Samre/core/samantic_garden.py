@@ -1,4 +1,3 @@
-
 """
 Samantic Garden - A Connectome-Inspired Knowledge Graph
 
@@ -9,15 +8,24 @@ to create a living, evolving representation of Samre's knowledge.
 
 import time
 import numpy as np
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict
+import os
+from datetime import datetime
+
+# --- Visualization Imports (with fallback) ---
+try:
+    import matplotlib.pyplot as plt
+    import networkx as nx
+    VISUALIZATION_ENABLED = True
+except ImportError:
+    VISUALIZATION_ENABLED = False
+    print("⚠️  Matplotlib or NetworkX not found. Visualization is disabled.")
 
 # --- Core Building Blocks: Synapse and KnowledgeNode ---
 
 class Synapse:
     """
-    Represents a directional connection between two KnowledgeNodes, analogous to a
-    biological synapse. Its strength determines the influence of the source node
-    on the target node.
+    Represents a directional connection between two KnowledgeNodes.
     """
     def __init__(self, target_node: 'KnowledgeNode', initial_strength: float = 0.1):
         self.target = target_node
@@ -25,62 +33,45 @@ class Synapse:
         self.last_activated_timestamp = time.time()
 
     def update_strength(self, reinforcement_signal: float):
-        """
-        Adjusts synaptic strength based on Hebbian principles ("neurons that fire
-        together, wire together"). The signal is typically a product of the
-        source and target nodes' activation.
-        """
         self.strength = np.clip(self.strength + reinforcement_signal, 0.01, 1.0)
         if reinforcement_signal > 0:
             self.last_activated_timestamp = time.time()
 
     def decay(self, decay_factor: float):
-        """Weakens the synapse over time if not used ('use it or lose it')."""
         self.strength *= (1.0 - decay_factor)
 
 
 class KnowledgeNode:
     """
-    Represents a single concept or unit of knowledge, analogous to a neuron or
-    a small neural assembly. It holds a vector representation and can become
-    activated, propagating signals to connected nodes.
+    Represents a single concept or unit of knowledge.
     """
-    def __init__(self, concept_vector: np.ndarray, label: str, source: str):
+    def __init__(self, concept_vector: np.ndarray, label: str, source: str, keywords: List[str] = []):
+        self.id = f"{label.replace(' ', '')}_{int(time.time()*1000)}" # Unique ID
         self.vector = concept_vector
         self.label = label
         self.source = source
+        self.keywords = keywords
         self.synapses: List[Synapse] = []
         self.activation_level = 0.0
-        self.importance = 0.1  # How critical this node is to the network
+        self.importance = 0.1
         self.created_at = time.time()
 
     def add_input(self, signal: float):
-        """Receives and accumulates activation signals from other nodes."""
         self.activation_level += signal
 
     def fire(self) -> List[Tuple['KnowledgeNode', float]]:
-        """
-        If activation exceeds a threshold, propagates a signal to all connected
-        nodes through their synapses. Returns the list of nodes that were fired upon.
-        """
         if self.activation_level <= 0:
             return []
-
         propagated_to = []
         for synapse in self.synapses:
             output_signal = self.activation_level * synapse.strength
             synapse.target.add_input(output_signal)
             propagated_to.append((synapse.target, output_signal))
-
-        # Reinforce its own importance upon firing
         self.importance = np.clip(self.importance + 0.01, 0, 1.0)
-        # Reset activation after firing
         self.activation_level = 0.0
         return propagated_to
 
     def add_synapse(self, target_node: 'KnowledgeNode', strength: float):
-        """Creates a new synaptic connection to another node."""
-        # Avoid duplicate connections
         if not any(s.target == target_node for s in self.synapses):
             self.synapses.append(Synapse(target_node, strength))
 
@@ -89,22 +80,25 @@ class KnowledgeNode:
 
 class SamanticGarden:
     """
-    Manages the entire connectome of KnowledgeNodes. It handles the ingestion of
-    new knowledge, the propagation of thoughts (activations), and the crucial
-    process of memory consolidation and pruning (simulated sleep).
+    Manages the entire connectome of KnowledgeNodes, including ingestion,
+    activation propagation, consolidation, and visualization.
     """
-    def __init__(self):
-        self.nodes: List[KnowledgeNode] = []
+    def __init__(self, log_dir="Samre/log"):
+        self.nodes: Dict[str, KnowledgeNode] = {}
+        self.log_dir = log_dir
         self.config = {
-            "ingestion_reinforcement_threshold": 0.9, # If similarity > this, reinforce instead of creating
-            "connection_similarity_threshold": 0.75,   # Similarity needed to form a new synapse
-            "consolidation_pruning_threshold": 0.02, # Synapses below this strength get pruned
-            "consolidation_decay_factor": 0.005,      # 'Use it or lose it' decay rate
-            "propagation_depth": 3,                  # How many steps a "thought" travels
+            "ingestion_reinforcement_threshold": 0.9,
+            "connection_similarity_threshold": 0.75,
+            "consolidation_pruning_threshold": 0.02,
+            "consolidation_decay_factor": 0.005,
+            "propagation_depth": 3,
         }
+        if VISUALIZATION_ENABLED and not os.path.exists(self.log_dir):
+            os.makedirs(self.log_dir)
+            print(f"Log directory created at: {self.log_dir}")
 
     def _calculate_similarity(self, vec1: np.ndarray, vec2: np.ndarray) -> float:
-        """Computes cosine similarity between two vectors."""
+        # (Identical to previous version)
         dot = np.dot(vec1, vec2)
         norm_v1 = np.linalg.norm(vec1)
         norm_v2 = np.linalg.norm(vec2)
@@ -113,101 +107,123 @@ class SamanticGarden:
         return dot / (norm_v1 * norm_v2)
 
     def _find_most_similar_node(self, vector: np.ndarray) -> Optional[Tuple[KnowledgeNode, float]]:
-        """Finds the best matching node in the garden for a given vector."""
         if not self.nodes:
             return None
-        similarities = [self._calculate_similarity(vector, node.vector) for node in self.nodes]
+        node_list = list(self.nodes.values())
+        similarities = [self._calculate_similarity(vector, node.vector) for node in node_list]
         best_match_idx = np.argmax(similarities)
-        return self.nodes[best_match_idx], similarities[best_match_idx]
+        return node_list[best_match_idx], similarities[best_match_idx]
 
-    def ingest_knowledge(self, concept_vector: List[float], label: str, source: str):
-        """
-        The primary method for introducing new information into the garden.
-        It either reinforces an existing node or creates a new one, then forms
-        new connections (synapses) based on similarity.
-        """
+    def ingest_knowledge(self, concept_vector: List[float], label: str, source: str, keywords: List[str]):
         vector_np = np.array(concept_vector)
-        
-        # Phase 1: Find best match or create a new node
         best_match = self._find_most_similar_node(vector_np)
         
         if best_match and best_match[1] > self.config["ingestion_reinforcement_threshold"]:
-            # Highly similar node exists -> Reinforce it
             node_to_focus = best_match[0]
-            # Reinforce by slightly nudging its vector and increasing importance
             node_to_focus.vector = (node_to_focus.vector * 0.9 + vector_np * 0.1)
             node_to_focus.importance += 0.1
-            print(f"🧠 Pengetahuan diperkuat: Node '{node_to_focus.label}' diperkuat oleh sumber '{source}'.")
+            print(f"🧠 Knowledge Reinforced: Node '{node_to_focus.label}' was strengthened by source '{source}'.")
         else:
-            # No close match found -> Create a new node (Growth)
-            node_to_focus = KnowledgeNode(vector_np, label, source)
-            self.nodes.append(node_to_focus)
-            print(f"🌱 Pengetahuan baru lahir: Node '{label}' tumbuh dari sumber '{source}'.")
+            node_to_focus = KnowledgeNode(vector_np, label, source, keywords)
+            self.nodes[node_to_focus.id] = node_to_focus
+            print(f"🌱 New Knowledge Born: Node '{label}' grew from source '{source}'.")
 
-        # Phase 2: Form new connections (Synaptogenesis)
-        for existing_node in self.nodes:
+        for existing_node in self.nodes.values():
             if existing_node == node_to_focus:
                 continue
             similarity = self._calculate_similarity(node_to_focus.vector, existing_node.vector)
             if similarity > self.config["connection_similarity_threshold"]:
-                # Create bidirectional connections
                 node_to_focus.add_synapse(existing_node, strength=similarity)
                 existing_node.add_synapse(node_to_focus, strength=similarity)
-                print(f"🔗 Sinapsis terbentuk: '{node_to_focus.label}' <-> '{existing_node.label}' (kemiripan: {similarity:.2f})")
+                print(f"🔗 Synapse Formed: '{node_to_focus.label}' <-> '{existing_node.label}' (similarity: {similarity:.2f})")
         
-        # Propagate an initial activation from the new/reinforced knowledge
         self.propagate_activation(node_to_focus, initial_signal=0.5)
 
     def propagate_activation(self, start_node: KnowledgeNode, initial_signal: float):
-        """
-        Simulates a "thought" spreading through the network. Starts a cascade of
-        activations from a given node.
-        """
-        print(f"⚡️ Propagasi dimulai dari '{start_node.label}'...")
+        # (Identical to previous version)
+        print(f"⚡️ Propagation started from '{start_node.label}'...")
         activated_in_step = {start_node}
         start_node.add_input(initial_signal)
-
-        for i in range(self.config["propagation_depth"]):
+        for _ in range(self.config["propagation_depth"]):
             next_activated = set()
             for node in activated_in_step:
-                fired_upon = node.fire() # fire() returns list of (node, signal)
+                fired_upon = node.fire()
                 for target_node, signal in fired_upon:
                     next_activated.add(target_node)
-            
             if not next_activated:
                 break
             activated_in_step = next_activated
 
     def consolidate_memories(self):
-        """
-        Simulates a "sleep" cycle for the connectome. This crucial process
-        prunes weak connections and applies decay, ensuring the garden remains
-        efficient and doesn't get bogged down in useless information.
-        """
-        print("\n--- 🌙 Memulai Konsolidasi Memori (Siklus Tidur) ---")
+        print("\n--- 🌙 Initiating Memory Consolidation (Sleep Cycle) ---")
         pruned_count = 0
-        total_synapses = 0
-
-        for node in self.nodes:
-            # Apply decay and prune weak synapses
+        total_synapses = sum(len(node.synapses) for node in self.nodes.values())
+        for node in self.nodes.values():
             surviving_synapses = []
             for synapse in node.synapses:
-                total_synapses += 1
                 synapse.decay(self.config["consolidation_decay_factor"])
                 if synapse.strength > self.config["consolidation_pruning_threshold"]:
                     surviving_synapses.append(synapse)
                 else:
                     pruned_count += 1
             node.synapses = surviving_synapses
+        print(f" pruned synapses: {pruned_count} out of {total_synapses}.")
+        if VISUALIZATION_ENABLED:
+            self.visualize_and_save_graph()
+        print("--- ☀️ Memory Consolidation Complete ---\n")
 
-        print(f" pruned_count: {pruned_count} dari {total_synapses} sinapsis.")
-        print("--- ☀️ Konsolidasi Memori Selesai ---\n")
+    def visualize_and_save_graph(self):
+        """Creates and saves a visual representation of the knowledge graph."""
+        if not VISUALIZATION_ENABLED:
+            return
+
+        G = nx.Graph()
+        node_labels = {}
+        node_sizes = []
+        
+        for node in self.nodes.values():
+            G.add_node(node.id)
+            # Make labels shorter for readability
+            clean_label = node.label.replace("Concept: ", "").split(',')[0]
+            node_labels[node.id] = clean_label
+            node_sizes.append(1000 + (node.importance * 4000)) # Size based on importance
+
+        edge_widths = []
+        for node in self.nodes.values():
+            for synapse in node.synapses:
+                if G.has_edge(node.id, synapse.target.id):
+                    continue # Avoid duplicate edges in visualization
+                G.add_edge(node.id, synapse.target.id, weight=synapse.strength)
+                edge_widths.append(synapse.strength * 5)
+
+        if not self.nodes:
+            print("📊 Garden is empty. Nothing to visualize.")
+            return
+
+        print("📊 Generating graph visualization...")
+        plt.figure(figsize=(20, 20))
+        pos = nx.spring_layout(G, k=0.9, iterations=50) # Spacious layout
+        
+        nx.draw_networkx_nodes(G, pos, node_size=node_sizes, node_color='skyblue', alpha=0.8)
+        nx.draw_networkx_edges(G, pos, width=edge_widths, edge_color='#cccccc', alpha=0.7)
+        nx.draw_networkx_labels(G, pos, labels=node_labels, font_size=10, font_weight='bold')
+
+        plt.title("Samre's Samantic Garden", fontsize=20)
+        plt.axis('off')
+        
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        filename = os.path.join(self.log_dir, f"samantic_garden_{timestamp}.png")
+        try:
+            plt.savefig(filename)
+            print(f"✅ Graph visualization saved to {filename}")
+        except Exception as e:
+            print(f"❌ Failed to save graph: {e}")
+        plt.close()
 
     def get_garden_state(self) -> dict:
-        """Returns a snapshot of the garden's statistics."""
         num_nodes = len(self.nodes)
-        num_synapses = sum(len(node.synapses) for node in self.nodes)
-        avg_strength = np.mean([s.strength for n in self.nodes for s in n.synapses]) if num_synapses > 0 else 0
+        num_synapses = sum(len(node.synapses) for node in self.nodes.values())
+        avg_strength = np.mean([s.strength for n in self.nodes.values() for s in n.synapses]) if num_synapses > 0 else 0
         return {
             "jumlah_node": num_nodes,
             "jumlah_sinapsis": num_synapses,

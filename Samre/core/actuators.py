@@ -1,75 +1,97 @@
 """
-Actuators - Komponen Pelaksana Tindakan untuk Samre.
+Actuators - Action Execution Components for Samre.
 
-Setiap kelas di sini mewakili kemampuan agen untuk melakukan tindakan tertentu
-di dalam lingkungannya, seperti belajar, bernalar, atau berevolusi.
+Each class here represents the agent's ability to perform a specific action
+in its environment, such as exploring for new information, learning it,
+or reasoning about its knowledge.
 """
 
+import os
+from typing import Optional, Set, Tuple
+
 from tools.file_manager import FileManager
-from typing import Dict, Any
+
+
+class ExploreActuator:
+    """Finds new, unread files for the agent to learn from."""
+    def __init__(self, file_manager: FileManager):
+        self.file_manager = file_manager
+        self.ignore_dirs = {'.git', '__pycache__', '.idea', 'Samre/log'}
+        # Expanded perceptions: now looks for text, code, and common binary files
+        self.valid_extensions = {
+            '.py', '.md',  # Text & Code
+            '.db', '.sqlite', '.bin', '.dat', # Data & Binary
+            '.so', '.dll', '.exe',          # Libraries & Executables
+            '.png', '.jpg', '.jpeg', '.svg', # Images
+            '.zip', '.gz', '.tar',           # Archives
+        }
+
+    def execute(self, explored_paths: Set[str]) -> Optional[str]:
+        """
+        Scans the filesystem for a file that has not been explored yet.
+
+        Args:
+            explored_paths: A set of file paths that the agent already knows about.
+
+        Returns:
+            The path to a new file, or None if no new files are found.
+        """
+        print("🗺️ EXPLORING: Searching for new information sources...")
+        for root, dirs, files in os.walk(self.file_manager.base_path):
+            dirs[:] = [d for d in dirs if d not in self.ignore_dirs]
+
+            for file in files:
+                # Check if the file extension is in our set of valid ones
+                if os.path.splitext(file)[1].lower() in self.valid_extensions:
+                    full_path = os.path.join(root, file)
+                    relative_path = os.path.relpath(full_path, self.file_manager.base_path)
+                    if relative_path not in explored_paths:
+                        print(f"    ✅ Found new file: {relative_path}")
+                        return relative_path
+        
+        print("    ⚠️ No new files found to explore.")
+        return None
+
 
 class LearningActuator:
-    def __init__(self, file_manager: FileManager, knowledge_base: Dict[str, Any]):
-        self.file_manager = file_manager
-        self.knowledge_base = knowledge_base
-
-    def execute(self, target_file: str = "README.md") -> bool:
-        """
-        Menjalankan tindakan BELAJAR.
-        Membaca file dan mengintegrasikan informasinya ke dalam basis pengetahuan.
-        """
-        print(f"📚 LEARNING: Mencoba belajar dari '{target_file}'.")
-        content = self.file_manager.read(target_file)
-        if content:
-            self.knowledge_base[target_file] = {
-                "content": content,
-                "lines": len(content.splitlines())
-            }
-            print(f"    ✅ Berhasil: Pengetahuan tentang '{target_file}' telah diperbarui.")
-            return True
-        else:
-            print(f"    ❌ Gagal: Tidak dapat membaca '{target_file}' untuk belajar.")
-            return False
-
-class ReasoningActuator:
-    def __init__(self, knowledge_base: Dict[str, Any]):
-        self.knowledge_base = knowledge_base
-
-    def execute(self) -> bool:
-        """
-        Menjalankan tindakan BERNALAR.
-        Menganalisis basis pengetahuan untuk menarik kesimpulan sederhana.
-        """
-        print("🤔 REASONING: Menganalisis basis pengetahuan...")
-        if not self.knowledge_base:
-            print("    ❌ Gagal: Basis pengetahuan kosong. Tidak ada yang bisa dinalar.")
-            return False
-
-        readme_knowledge = self.knowledge_base.get("README.md")
-        if readme_knowledge and "otonom" in readme_knowledge.get("content", ""):
-            print("    ✅ Kesimpulan: Berdasarkan README.md, proyek ini adalah agen otonom.")
-            return True
-        else:
-            print("    ⚠️ Tidak dapat menarik kesimpulan yang kuat dari pengetahuan saat ini.")
-            return False
-
-class EvolutionaryActuator:
+    """Reads a specific file to provide its content for learning."""
     def __init__(self, file_manager: FileManager):
         self.file_manager = file_manager
 
-    def execute(self, target_file: str = "Samre/core/sws_logic.py") -> bool:
+    def execute_text(self, target_file: str) -> Optional[Tuple[str, str]]:
         """
-        Menjalankan tindakan EVOLVE (langkah pertama: analisis).
-        Membaca kode sumbernya sendiri untuk mempersiapkan modifikasi.
+        Reads a file assuming it is text-based.
+        Returns a tuple of (content, path) on success, or None on failure.
         """
-        print(f"🧬 EVOLVING: Mempersiapkan evolusi dengan menganalisis '{target_file}'.")
-        source_code = self.file_manager.read(target_file)
-        if source_code:
-            print(f"    ✅ Analisis Awal: Berhasil membaca {len(source_code)} karakter kode sumber.")
-            # Di masa depan, langkah ini akan melibatkan analisis yang lebih dalam (misalnya, AST)
-            # dan menghasilkan proposal perubahan kode.
-            print("    下一步 (Langkah selanjutnya): Usulkan dan terapkan perubahan kode.")
+        print(f"📚 LEARNING (Text): Attempting to learn from '{target_file}'.")
+        read_result = self.file_manager.read_file(target_file)
+        if "content" in read_result:
+            print(f"    ✅ Success: Read text content from '{target_file}'.")
+            return read_result["content"], target_file
+        else:
+            print(f"    ❌ Failure: Could not read '{target_file}' as text.")
+            return None
+
+
+class ReasoningActuator:
+    """Analyzes the knowledge garden to draw conclusions (conceptual)."""
+    def execute(self) -> bool:
+        print("🤔 REASONING: Analyzing knowledge...")
+        print("    ✅ Conclusion: The agent reflects on its knowledge.")
+        return True
+
+
+class EvolutionaryActuator:
+    """Analyzes own source code to prepare for self-modification (conceptual)."""
+    def __init__(self, file_manager: FileManager):
+        self.file_manager = file_manager
+
+    def execute(self, target_file: str = "core/flock_of_thought.py") -> bool:
+        print(f"🧬 EVOLVING: Preparing evolution by analyzing '{target_file}'.")
+        read_result = self.file_manager.read_file(target_file)
+        if "content" in read_result:
+            print(f"    ✅ Analysis: Successfully read {len(read_result['content'])} characters.")
             return True
         else:
-            print(f"    ❌ Gagal: Tidak dapat membaca kode sumber '{target_file}' untuk evolusi.")
+            print(f"    ❌ Failure: Could not read source code '{target_file}'.")
             return False

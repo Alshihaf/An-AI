@@ -1,2 +1,3 @@
-numpy>=1.21.0
-# Tidak ada library ML eksternal lainnya
+numpy
+networkx
+matplotlib
