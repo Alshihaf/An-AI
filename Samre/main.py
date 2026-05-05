@@ -18,16 +18,9 @@ from core.flock_of_thought import FlockOfThought
 class AutonomousAgent:
     """The main class that runs Samre's autonomous lifecycle."""
 
-    def __init__(self, use_persistence: bool = True, load_file: Optional[str] = None):
-        self.flock = FlockOfThought(use_persistence=use_persistence)
+    def __init__(self):
+        self.flock = FlockOfThought()
         self.running = True
-        
-        if load_file:
-            try:
-                self.flock.load_state(load_file)
-                print(f"✅ State successfully loaded from {load_file}")
-            except Exception as e:
-                print(f"❌ Failed to load state: {e}")
 
     def run_cycle(self):
         """Executes a single cognitive cycle."""
@@ -55,24 +48,16 @@ class AutonomousAgent:
 
     def shutdown(self):
         """Handles the shutdown process."""
-        print("👋 Shutting down and saving state...")
+        print("👋 Shutting down...")
         self.running = False
-        # self.flock.save_state("samre_state_final.pkl")
-        if self.flock.memory_store:
-            self.flock.memory_store.close()
         print("✅ Shutdown complete.")
 
 def main():
     parser = argparse.ArgumentParser(description="Run the Samre Autonomous Agent.")
-    parser.add_argument("--no-persistence", action="store_true", help="Disable long-term memory persistence.")
-    parser.add_argument("--load", type=str, help="Load state from a file on startup.")
     parser.add_argument("--delay", type=float, default=5.0, help="Delay in seconds between cycles.")
     args = parser.parse_args()
 
-    agent = AutonomousAgent(
-        use_persistence=not args.no_persistence,
-        load_file=args.load
-    )
+    agent = AutonomousAgent()
     agent.start(cycle_delay=args.delay)
 
 if __name__ == "__main__":
